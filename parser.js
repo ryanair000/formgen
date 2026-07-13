@@ -51,7 +51,7 @@
   }
 
   function parseScale(line) {
-    const pairs = [...line.matchAll(/(\d{1,2})\s*=\s*([^,\t]+?)(?=(?:\s{2,}|,\s*\d{1,2}\s*=|$))/g)];
+    const pairs = [...line.matchAll(/(\d{1,2})\s*=\s*(.*?)(?=\s+\d{1,2}\s*=|$)/g)];
     if (pairs.length >= 2) {
       const nums = pairs.map((m) => Number(m[1])).filter(Number.isFinite);
       const min = Math.min(...nums);
@@ -84,7 +84,7 @@
 
   function normalizeQuestion(question, index) {
     const required = /\brequired\b|\*$/.test(question.title.toLowerCase()) && !/optional/.test(question.title.toLowerCase());
-    let title = question.title
+    const title = question.title
       .replace(/\s*\((?:required|optional)\)\s*/gi, ' ')
       .replace(/\s*\*\s*$/, '')
       .replace(/\s+/g, ' ')
@@ -121,11 +121,8 @@
     function finishQuestion() {
       if (!currentQuestion) return;
       const normalized = normalizeQuestion(currentQuestion, sections.reduce((n, section) => n + section.questions.length, 0));
-      if (!normalized.title) {
-        warnings.push('A question with no title was skipped.');
-      } else {
-        currentSection.questions.push(normalized);
-      }
+      if (!normalized.title) warnings.push('A question with no title was skipped.');
+      else currentSection.questions.push(normalized);
       currentQuestion = null;
     }
 
@@ -137,9 +134,8 @@
       if (isSection(line)) {
         finishQuestion();
         const titleValue = sectionTitle(line);
-        if (currentSection.questions.length === 0 && currentSection.title === 'General') {
-          currentSection.title = titleValue;
-        } else {
+        if (currentSection.questions.length === 0 && currentSection.title === 'General') currentSection.title = titleValue;
+        else {
           currentSection = { id: `section_${sections.length + 1}`, title: titleValue, description: '', questions: [] };
           sections.push(currentSection);
         }
@@ -162,28 +158,17 @@
       }
 
       if (!currentQuestion) {
-        if (INSTRUCTION_RE.test(line)) {
-          currentSection.description = [currentSection.description, line].filter(Boolean).join(' ');
-        }
+        if (INSTRUCTION_RE.test(line)) currentSection.description = [currentSection.description, line].filter(Boolean).join(' ');
         continue;
       }
 
       currentQuestion.sourceLines.push(line);
       const option = parseOption(line);
-      if (Array.isArray(option)) {
-        currentQuestion.options.push(...option);
-        continue;
-      }
-      if (option) {
-        currentQuestion.options.push(option);
-        continue;
-      }
+      if (Array.isArray(option)) { currentQuestion.options.push(...option); continue; }
+      if (option) { currentQuestion.options.push(option); continue; }
 
       const scale = parseScale(line);
-      if (scale) {
-        currentQuestion.scale = scale;
-        continue;
-      }
+      if (scale) { currentQuestion.scale = scale; continue; }
 
       if (ANSWER_LINE_RE.test(line) || /^answer\s*:/i.test(line)) continue;
       if (/^skip logic\s*:/i.test(line) || /if\s+.+(?:skip|go to|proceed)/i.test(line)) {
@@ -191,9 +176,7 @@
         currentQuestion.warning = 'Skip logic detected. Review the destination section after publishing.';
         continue;
       }
-      if (!INSTRUCTION_RE.test(line) && line.length < 240) {
-        currentQuestion.description = [currentQuestion.description, line].filter(Boolean).join(' ');
-      }
+      if (!INSTRUCTION_RE.test(line) && line.length < 240) currentQuestion.description = [currentQuestion.description, line].filter(Boolean).join(' ');
     }
     finishQuestion();
 
@@ -244,7 +227,9 @@
       });
       pageTexts.push(pageText);
     }
-    return { text: pageTexts.join('\n'), messages: [] };
+    const text = pageTexts.join('\n');
+    if (!text.trim()) throw new Error('This PDF appears to contain scanned images only. OCR is not supported yet; use a text-based PDF, DOCX, or TXT file.');
+    return { text, messages: [] };
   }
 
   async function parseFile(file) {
@@ -257,9 +242,7 @@
     else throw new Error('Unsupported file type. Upload DOCX, PDF, or TXT.');
 
     const result = parseText(extracted.text, { title: file.name.replace(/\.[^.]+$/, '') });
-    if (extracted.messages.length) {
-      result.warnings.push(...extracted.messages.map((message) => message.message || String(message)));
-    }
+    if (extracted.messages.length) result.warnings.push(...extracted.messages.map((message) => message.message || String(message)));
     return result;
   }
 
