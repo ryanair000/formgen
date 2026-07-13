@@ -22,18 +22,11 @@
     return value;
   }
 
-  function isConfigured() {
-    return Boolean(getClientId());
-  }
-
-  function isConnected() {
-    return Boolean(tokenResponse?.access_token && Number(tokenResponse.expires_at || 0) > Date.now());
-  }
+  function isConfigured() { return Boolean(getClientId()); }
+  function isConnected() { return Boolean(tokenResponse?.access_token && Number(tokenResponse.expires_at || 0) > Date.now()); }
 
   function requireGoogleLibrary() {
-    if (!globalThis.google?.accounts?.oauth2) {
-      throw new Error('Google sign-in is still loading. Wait a moment and try again.');
-    }
+    if (!globalThis.google?.accounts?.oauth2) throw new Error('Google sign-in is still loading. Wait a moment and try again.');
   }
 
   function requestToken(scopes, options) {
@@ -65,9 +58,7 @@
     try {
       const stored = JSON.parse(sessionStorage.getItem('formpilot_google_token') || 'null');
       if (stored?.access_token && Number(stored.expires_at || 0) > Date.now()) tokenResponse = stored;
-    } catch (_) {
-      tokenResponse = null;
-    }
+    } catch (_) { tokenResponse = null; }
     return tokenResponse;
   }
 
@@ -83,8 +74,7 @@
   }
 
   async function authorizeForms() {
-    const scopes = `${PROFILE_SCOPES} ${FORMS_SCOPE}`;
-    return requestToken(scopes, { prompt: 'consent' });
+    return requestToken(`${PROFILE_SCOPES} ${FORMS_SCOPE}`, { prompt: 'consent' });
   }
 
   function getProfile() {
@@ -109,8 +99,9 @@
       case 'DATE': return { ...base, dateQuestion: { includeTime: false, includeYear: true } };
       case 'TIME': return { ...base, timeQuestion: { duration: false } };
       case 'SCALE': {
-        const low = Math.max(0, Math.min(10, Number(question.scale?.low ?? 1)));
-        const high = Math.max(low + 1, Math.min(10, Number(question.scale?.high ?? 5)));
+        const requestedLow = Number(question.scale?.low ?? 1);
+        const low = requestedLow === 0 ? 0 : 1;
+        const high = Math.max(3, Math.min(10, Number(question.scale?.high ?? 5)));
         return {
           ...base,
           scaleQuestion: {
@@ -139,9 +130,7 @@
 
   function buildBatchRequests(form) {
     const requests = [];
-    if (form.description) {
-      requests.push({ updateFormInfo: { info: { description: form.description }, updateMask: 'description' } });
-    }
+    if (form.description) requests.push({ updateFormInfo: { info: { description: form.description }, updateMask: 'description' } });
     let index = 0;
     form.sections.forEach((section, sectionIndex) => {
       if (sectionIndex > 0 || section.title !== 'General') {
@@ -175,15 +164,13 @@
     try {
       const body = await response.json();
       detail = body?.error?.message || body?.error_description || '';
-    } catch (_) {
-      detail = await response.text().catch(() => '');
-    }
+    } catch (_) { detail = await response.text().catch(() => ''); }
     const error = new Error(detail || fallback || `Google API request failed (${response.status}).`);
     error.status = response.status;
     return error;
   }
 
-  async function googleFetch(url, options) {
+  async function googleFetch(url, options, retried) {
     if (!isConnected()) await authorizeForms();
     const response = await fetch(url, {
       ...options,
@@ -193,9 +180,9 @@
         ...(options?.headers || {}),
       },
     });
-    if (response.status === 401) {
+    if (response.status === 401 && !retried) {
       await authorizeForms();
-      return googleFetch(url, options);
+      return googleFetch(url, options, true);
     }
     if (!response.ok) throw await apiError(response);
     return response.json();
