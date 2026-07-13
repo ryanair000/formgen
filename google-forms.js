@@ -7,7 +7,7 @@
 
   const FORMS_SCOPE = 'https://www.googleapis.com/auth/forms.body';
   const PROFILE_SCOPES = 'openid email profile';
-  let tokenClient = null;
+  const TOKEN_TIMEOUT_MS = 30000;
   let tokenResponse = null;
 
   function getClientId() {
@@ -18,39 +18,71 @@
     const value = String(clientId || '').trim();
     if (value) localStorage.setItem('formpilot_google_client_id', value);
     else localStorage.removeItem('formpilot_google_client_id');
-    tokenClient = null;
+    tokenResponse = null;
+    sessionStorage.removeItem('formpilot_google_token');
     return value;
   }
 
   function isConfigured() { return Boolean(getClientId()); }
-  function isConnected() { return Boolean(tokenResponse?.access_token && Number(tokenResponse.expires_at || 0) > Date.now()); }
-
-  function requireGoogleLibrary() {
-    if (!globalThis.google?.accounts?.oauth2) throw new Error('Google sign-in is still loading. Wait a moment and try again.');
+  function tokenIsFresh() {
+    return Boolean(tokenResponse?.access_token && Number(tokenResponse.expires_at || 0) > Date.now());
   }
 
-  function requestToken(scopes, options) {
+  function requireGoogleLibrary() {
+    if (!globalThis.google?.accounts?.oauth2) {
+      throw new Error('Google authorization is still loading. Refresh the page, wait a few seconds, and try again.');
+    }
+  }
+
+  function friendlyOAuthError(error) {
+    const type = error?.type || error?.error || '';
+    if (type === 'popup_failed_to_open') {
+      return new Error('Google could not open the account window. Allow pop-ups for this site, then click Publish again.');
+    }
+    if (type === 'popup_closed') {
+      return new Error('The Google account window was closed before authorization finished. Click Publish and complete the Google prompt.');
+    }
+    return new Error(error?.message || error?.error_description || type || 'Google authorization failed.');
+  }
+
+  function requestToken(scopes, options = {}) {
     requireGoogleLibrary();
     const clientId = getClientId();
-    if (!clientId) throw new Error('Google OAuth Client ID is not configured. Open Settings and add it first.');
+    if (!clientId) throw new Error('Google OAuth Client ID is not configured. Open Google setup and add it first.');
+
     return new Promise((resolve, reject) => {
-      tokenClient = globalThis.google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: scopes,
-        prompt: options?.prompt || '',
-        callback: (response) => {
-          if (response?.error) {
-            reject(new Error(response.error_description || response.error));
-            return;
-          }
-          response.expires_at = Date.now() + Math.max(60, Number(response.expires_in || 3600) - 30) * 1000;
-          tokenResponse = response;
-          sessionStorage.setItem('formpilot_google_token', JSON.stringify(response));
-          resolve(response);
-        },
-        error_callback: (error) => reject(new Error(error?.message || error?.type || 'Google sign-in failed.')),
-      });
-      tokenClient.requestAccessToken({ prompt: options?.prompt || 'select_account' });
+      let settled = false;
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn(value);
+      };
+      const timer = setTimeout(() => {
+        finish(reject, new Error('Google did not return an authorization result. Allow pop-ups for formpilot-app.vercel.app, confirm this Google account is an OAuth test user, and try again.'));
+      }, Number(options.timeoutMs || TOKEN_TIMEOUT_MS));
+
+      try {
+        const client = globalThis.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: scopes,
+          callback: (response) => {
+            if (response?.error) {
+              finish(reject, friendlyOAuthError(response));
+              return;
+            }
+            response.expires_at = Date.now() + Math.max(60, Number(response.expires_in || 3600) - 30) * 1000;
+            tokenResponse = response;
+            sessionStorage.setItem('formpilot_google_token', JSON.stringify(response));
+            finish(resolve, response);
+          },
+          error_callback: (error) => finish(reject, friendlyOAuthError(error)),
+        });
+
+        client.requestAccessToken({ prompt: options.prompt || 'select_account' });
+      } catch (error) {
+        finish(reject, friendlyOAuthError(error));
+      }
     });
   }
 
@@ -62,8 +94,21 @@
     return tokenResponse;
   }
 
-  async function connectForProfile() {
-    const response = await requestToken(PROFILE_SCOPES, { prompt: 'select_account' });
+  function hasScope(scope, response = tokenResponse) {
+    if (!response?.access_token) return false;
+    try {
+      if (globalThis.google?.accounts?.oauth2?.hasGrantedAllScopes) {
+        return globalThis.google.accounts.oauth2.hasGrantedAllScopes(response, scope);
+      }
+    } catch (_) {}
+    return String(response.scope || '').split(/\s+/).includes(scope);
+  }
+
+  function isConnected() { return tokenIsFresh(); }
+  function isFormsAuthorized() { return tokenIsFresh() && hasScope(FORMS_SCOPE); }
+
+  async function fetchProfileWithToken(response = tokenResponse) {
+    if (!response?.access_token) return null;
     const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
       headers: { Authorization: `Bearer ${response.access_token}` },
     });
@@ -73,8 +118,18 @@
     return profile;
   }
 
+  async function connectForProfile() {
+    const response = await requestToken(PROFILE_SCOPES, { prompt: 'select_account' });
+    return fetchProfileWithToken(response);
+  }
+
   async function authorizeForms() {
-    return requestToken(`${PROFILE_SCOPES} ${FORMS_SCOPE}`, { prompt: 'consent' });
+    const response = await requestToken(`${PROFILE_SCOPES} ${FORMS_SCOPE}`, { prompt: 'consent' });
+    if (!hasScope(FORMS_SCOPE, response)) {
+      throw new Error('Google did not grant permission to create Forms. Click Publish again and approve the Google Forms permission.');
+    }
+    try { await fetchProfileWithToken(response); } catch (_) {}
+    return response;
   }
 
   function getProfile() {
@@ -99,8 +154,7 @@
       case 'DATE': return { ...base, dateQuestion: { includeTime: false, includeYear: true } };
       case 'TIME': return { ...base, timeQuestion: { duration: false } };
       case 'SCALE': {
-        const requestedLow = Number(question.scale?.low ?? 1);
-        const low = requestedLow === 0 ? 0 : 1;
+        const low = Number(question.scale?.low) === 0 ? 0 : 1;
         const high = Math.max(3, Math.min(10, Number(question.scale?.high ?? 5)));
         return {
           ...base,
@@ -130,7 +184,9 @@
 
   function buildBatchRequests(form) {
     const requests = [];
-    if (form.description) requests.push({ updateFormInfo: { info: { description: form.description }, updateMask: 'description' } });
+    if (form.description) {
+      requests.push({ updateFormInfo: { info: { description: form.description }, updateMask: 'description' } });
+    }
     let index = 0;
     form.sections.forEach((section, sectionIndex) => {
       if (sectionIndex > 0 || section.title !== 'General') {
@@ -170,8 +226,10 @@
     return error;
   }
 
-  async function googleFetch(url, options, retried) {
-    if (!isConnected()) await authorizeForms();
+  async function googleFetch(url, options) {
+    if (!isFormsAuthorized()) {
+      throw new Error('Google Forms authorization is missing or expired. Return to the editor and click Publish again.');
+    }
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -180,9 +238,10 @@
         ...(options?.headers || {}),
       },
     });
-    if (response.status === 401 && !retried) {
-      await authorizeForms();
-      return googleFetch(url, options, true);
+    if (response.status === 401) {
+      tokenResponse = null;
+      sessionStorage.removeItem('formpilot_google_token');
+      throw new Error('Your Google authorization expired. Return to the editor and click Publish again.');
     }
     if (!response.ok) throw await apiError(response);
     return response.json();
@@ -192,11 +251,11 @@
     if (!form?.sections?.length) throw new Error('The form has no sections or questions to publish.');
     const totalQuestions = form.sections.reduce((sum, section) => sum + section.questions.length, 0);
     if (!totalQuestions) throw new Error('Add at least one question before publishing.');
+    if (!isFormsAuthorized()) {
+      throw new Error('Authorize Google Forms first by clicking Publish from the editor.');
+    }
 
-    onProgress?.('Connecting to Google…', 10);
-    if (!isConnected()) await authorizeForms();
-
-    onProgress?.('Creating the Google Form…', 28);
+    onProgress?.('Creating the Google Form…', 25);
     const created = await googleFetch('https://forms.googleapis.com/v1/forms?unpublished=true', {
       method: 'POST',
       body: JSON.stringify({ info: { title: form.title, documentTitle: form.title } }),
@@ -235,6 +294,7 @@
     setClientId,
     isConfigured,
     isConnected,
+    isFormsAuthorized,
     getProfile,
     connectForProfile,
     authorizeForms,
