@@ -1,0 +1,105 @@
+FormPilot Sample Questionnaire
+Customer Experience and Digital Services Survey
+Purpose: This sample document is designed to test document-to-form conversion. It includes sections, instructions, required questions, multiple choice, checkboxes, dropdowns, linear scales, dates, paragraphs, grids, and skip logic.
+Instructions: Please answer all questions marked Required. Where stated, select one option or all options that apply.
+Section A: Consent and Respondent Details
+1. Do you agree to participate in this survey? (Required)
+☐ Yes, I agree
+☐ No, I do not agree
+2. Full name (Optional)
+Answer: ______________________________________________
+3. Email address (Required)
+Answer: ______________________________________________
+4. Date of response (Required)
+Answer: ______________________________________________
+5. Age group (Required)
+☐ Under 18
+☐ 18-24
+☐ 25-34
+☐ 35-44
+☐ 45-54
+☐ 55 and above
+6. County of residence (Required)
+☐ Mombasa
+☐ Nairobi
+☐ Kisumu
+☐ Nakuru
+☐ Kilifi
+☐ Kwale
+☐ Other
+Section B: Service Experience
+7. Which services have you used in the past 12 months? Select all that apply. (Required)
+☐ Online application portal
+☐ Customer support desk
+☐ Mobile application
+☐ Email support
+☐ Physical office services
+☐ None of the above
+8. How often do you use the service? (Required)
+○ Daily
+○ Weekly
+○ Monthly
+○ A few times a year
+○ This is my first time
+9. Rate the overall ease of using the service. (Required)
+1 = Very difficult     2 = Difficult     3 = Neutral     4 = Easy     5 = Very easy
+10. How long did it take to complete your most recent request?
+○ Less than 5 minutes
+○ 5-15 minutes
+○ 16-30 minutes
+○ 31-60 minutes
+○ More than 1 hour
+11. Please describe any difficulty you experienced.
+________________________________________________________________________________
+________________________________________________________________________________
+________________________________________________________________________________
+Section C: Satisfaction Ratings
+12. Please rate each area using the scale below. (Required)
+1 = Very dissatisfied, 2 = Dissatisfied, 3 = Neutral, 4 = Satisfied, 5 = Very satisfied
+Section D: Support and Follow-up
+13. Did you contact customer support? (Required)
+○ Yes
+○ No
+Skip logic: If No, skip to Question 16.
+14. Which support channel did you use?
+○ Phone
+○ Email
+○ Live chat
+○ WhatsApp
+○ In person
+15. Was your issue resolved?
+○ Yes, fully resolved
+○ Partly resolved
+○ No, not resolved
+16. Would you recommend the service to someone else? (Required)
+0 = Not at all likely                              10 = Extremely likely
+0   1   2   3   4   5   6   7   8   9   10
+17. What is the main reason for your score?
+________________________________________________________________________________
+________________________________________________________________________________
+________________________________________________________________________________
+Section E: Final Comments
+18. Which improvements would you prioritize? Select up to three.
+☐ Faster processing
+☐ Clearer instructions
+☐ Better mobile experience
+☐ More payment options
+☐ Longer support hours
+☐ More service locations
+☐ Improved accessibility
+19. Additional comments or suggestions
+________________________________________________________________________________
+________________________________________________________________________________
+________________________________________________________________________________
+________________________________________________________________________________
+20. May we contact you for follow-up?
+○ Yes
+○ No
+Thank you for completing this sample questionnaire.
+
+Area	1	2	3	4	5
+Website accessibility	○	○	○	○	○
+Clarity of information	○	○	○	○	○
+Speed of service	○	○	○	○	○
+Staff helpfulness	○	○	○	○	○
+Reliability of the system	○	○	○	○	○
