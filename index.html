@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Convert DOCX, PDF and TXT questionnaires into editable Google Forms.">
+  <meta name="theme-color" content="#145cf5">
+  <title>FormPilot — Document to Google Form</title>
+  <link rel="preconnect" href="https://accounts.google.com">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+  <script src="./config.js" defer></script>
+  <script src="./parser.js" defer></script>
+  <script src="./google-forms.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div id="app" aria-live="polite"></div>
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-stack"></div>
+</body>
+</html>
